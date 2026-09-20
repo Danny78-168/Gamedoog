@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏴‍☠️ 海盜九宮格決鬥 (Pirate 3x3 Duel)</title>
+  <style>
+    :root {
+      --bg-color: #1a0f08;
+      --card-bg: #2c1d11;
+      --border-color: #8c6747;
+      --gold: #f39c12;
+      --player-color: #e74c3c;
+      --enemy-color: #2980b9;
+      --text-color: #f5e6ca;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 15px;
+    }
+
+    h1 {
+      color: var(--gold);
+      margin-bottom: 10px;
+      font-size: 1.6rem;
+      text-shadow: 2px 2px 4px #000;
+    }
+
+    /* 角色狀態欄 */
+    .status-container {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 380px;
+      margin-bottom: 15px;
+      background: var(--card-bg);
+      padding: 10px;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .cap-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 45%;
+    }
+
+    .hp-bar-bg {
+      width: 100%;
+      height: 14px;
+      background: #444;
+      border-radius: 7px;
+      overflow: hidden;
+      margin-top: 5px;
+      border: 1px solid #000;
+    }
+
+    .hp-bar {
+      height: 100%;
+      width: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .player-hp { background: var(--player-color); }
+    .enemy-hp { background: var(--enemy-color); }
+
+    /* 3x3 棋盤 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 380px;
+      aspect-ratio: 1;
+      background: #0f0804;
+      padding: 8px;
+      border: 3px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+    }
+
+    .cell {
+      background: var(--card-bg);
+      border: 2px dashed #5c4028;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .cell:hover { border-color: var(--gold); background: #3a2717; }
+    .cell.owned-player { background: #4a1c1c; border: 2px solid var(--player-color); }
+    .cell.owned-enemy { background: #1c324a; border: 2px solid var(--enemy-color); }
+
+    .cell-icon { font-size: 2rem; }
+    .cell-power {
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: var(--gold);
+      position: absolute;
+      bottom: 4px;
+      right: 6px;
+    }
+
+    /* 手牌區 */
+    .hand-title { margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa; }
+    .hand {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 380px;
+      justify-content: center;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px;
+      width: 30%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .card:hover { transform: translateY(-4px); border-color: var(--gold); }
+    .card.selected { border-color: var(--gold); transform: translateY(-8px); box-shadow: 0 0 10px var(--gold); }
+    .card-icon { font-size: 1.8rem; }
+    .card-name { font-size: 0.8rem; margin: 4px 0; font-weight: bold; }
+    .card-desc { font-size: 0.65rem; color: #ccc; text-align: center; }
+
+    /* 對戰訊息紀錄 */
+    .log {
+      margin-top: 15px;
+      font-size: 0.85rem;
+      color: var(--gold);
+      height: 24px;
+      text-align: center;
+    }
+
+    .btn-reset {
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: var(--gold);
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🏴‍☠️ 海盜 3×3 陣地決鬥</h1>
+
+  <div class="status-container">
+    <div class="cap-box">
+      <span>紅鬍子船長 (玩家)</span>
+      <div class="hp-bar-bg"><div id="playerHpBar" class="hp-bar player-hp"></div></div>
+      <span id="playerHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+    </div>
+    <div style="align-self: center; font-weight: bold; color: var(--gold);">VS</div>
+    <div class="cap-box">
+      <span>黑鬍子船長 (敵方)</span>
+      <div class="hp-bar-bg"><div id="enemyHpBar" class="hp-bar enemy-hp"></div></div>
+      <span id="enemyHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="hand-title">選擇你要出動的海盜卡牌：</div>
+  <div class="hand" id="hand"></div>
+
+  <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
+  <button class="btn-reset" id="resetBtn" onclick="initGame()">重新開局</button>
+
+  <script>
+    const CARD_TYPES = [
+      { id: 'seaman', name: '水手', icon: '⚔️', power: 3, desc: '戰力 3' },
+      { id: 'gunner', name: '燧發槍手', icon: '🗡️', power: 5, desc: '戰力 5' },
+      { id: 'bomb', name: '炸藥桶', icon: '💣', power: 7, desc: '戰力 7 (自傷2點HP)', recoil: 2 },
+      { id: 'rum', name: '朗姆酒', icon: '🍺', power: 2, desc: '戰力 2 (恢復4點HP)', heal: 4 },
+      { id: 'cannon', name: '重砲手', icon: '💥', power: 4, desc: '戰力 4 (直傷3點)', directDmg: 3 }
+    ];
+
+    const WIN_LINES = [
+      [0,1,2], [3,4,5], [6,7,8], // 橫
+      [0,3,6], [1,4,7], [2,5,8], // 豎
+      [0,4,8], [2,4,6]          // 斜
+    ];
+
+    let playerHp = 30, enemyHp = 30;
+    let gridState = Array(9).fill(null);
+    let playerHand = [];
+    let selectedHandIndex = null;
+    let isPlayerTurn = true;
+    let gameOver = false;
+
+    function initGame() {
+      playerHp = 30; enemyHp = 30;
+      gridState = Array(9).fill(null);
+      selectedHandIndex = null;
+      isPlayerTurn = true;
+      gameOver = false;
+      document.getElementById('resetBtn').style.display = 'none';
+      
+      // 抽滿手牌
+      playerHand = [];
+      for (let i = 0; i < 3; i++) playerHand.push(getRandomCard());
+
+      updateUI();
+      log("遊戲開始！請選擇卡牌並放置於九宮格中。");
+    }
+
+    function getRandomCard() {
+      return CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
+    }
+
+    function updateUI() {
+      // HP 條更新
+      const pPercent = Math.max(0, (playerHp / 30) * 100);
+      const ePercent = Math.max(0, (enemyHp / 30) * 100);
+      document.getElementById('playerHpBar').style.width = pPercent + '%';
+      document.getElementById('enemyHpBar').style.width = ePercent + '%';
+      document.getElementById('playerHpText').innerText = `${Math.max(0, playerHp)} / 30`;
+      document.getElementById('enemyHpText').innerText = `${Math.max(0, enemyHp)} / 30`;
+
+      // 渲染棋盤
+      const gridEl = document.getElementById('grid');
+      gridEl.innerHTML = '';
+      gridState.forEach((cell, idx) => {
+        const div = document.createElement('div');
+        div.className = 'cell';
+        if (cell) {
+          div.classList.add(cell.owner === 'player' ? 'owned-player' : 'owned-enemy');
+          div.innerHTML = `<span class="cell-icon">${cell.card.icon}</span><span class="cell-power">${cell.card.power}</span>`;
+        }
+        div.onclick = () => onCellClick(idx);
+        gridEl.appendChild(div);
+      });
+
+      // 渲染手牌
+      const handEl = document.getElementById('hand');
+      handEl.innerHTML = '';
+      playerHand.forEach((card, idx) => {
+        const div = document.createElement('div');
+        div.className = `card ${selectedHandIndex === idx ? 'selected' : ''}`;
+        div.innerHTML = `
+          <span class="card-icon">${card.icon}</span>
+          <span class="card-name">${card.name}</span>
+          <span class="card-desc">${card.desc}</span>
+        `;
+        div.onclick = () => {
+          if (!isPlayerTurn || gameOver) return;
+          selectedHandIndex = idx;
+          updateUI();
+        };
+        handEl.appendChild(div);
+      });
+    }
+
+    function onCellClick(index) {
+      if (!isPlayerTurn || gameOver || selectedHandIndex === null) return;
+
+      const card = playerHand[selectedHandIndex];
+      const targetCell = gridState[index];
+
+      // 驗證放置邏輯
+      if (targetCell) {
+        if (targetCell.owner === 'player') {
+          log("不能覆蓋自己的卡牌！");
+          return;
+        }
+        if (card.power <= targetCell.card.power) {
+          log(`戰力不足！需要高於 ${targetCell.card.power} 才能搶奪敵方陣地。`);
+          return;
+        }
+      }
+
+      // 執行出牌
+      playCard('player', index, card);
+      playerHand[selectedHandIndex] = getRandomCard(); // 補牌
+      selectedHandIndex = null;
+
+      if (!checkWinConditions()) {
+        isPlayerTurn = false;
+        updateUI();
+        setTimeout(enemyTurn, 1000); // 1秒後 AI 出牌
+      }
+    }
+
+    function playCard(owner, index, card) {
+      gridState[index] = { owner, card };
+
+      // 觸發卡牌特殊效果
+      if (owner === 'player') {
+        if (card.heal) playerHp = Math.min(30, playerHp + card.heal);
+        if (card.recoil) playerHp -= card.recoil;
+        if (card.directDmg) enemyHp -= card.directDmg;
+      } else {
+        if (card.heal) enemyHp = Math.min(30, enemyHp + card.heal);
+        if (card.recoil) enemyHp -= card.recoil;
+        if (card.directDmg) playerHp -= card.directDmg;
+      }
+
+      log(`${owner === 'player' ? '你' : '敵方'}使用了【${card.name}】佔領陣地！`);
+
+      // 檢查三連線 (連線砲擊)
+      checkLines(owner);
+      updateUI();
+    }
+
+    function checkLines(owner) {
+      WIN_LINES.forEach(line => {
+        const [a, b, c] = line;
+        if (gridState[a] && gridState[a].owner === owner &&
+            gridState[b] && gridState[b].owner === owner &&
+            gridState[c] && gridState[c].owner === owner) {
+          
+          // 觸發連線絕招
+          const dmg = 12;
+          if (owner === 'player') {
+            enemyHp -= dmg;
+            log(`💥 舷砲齊射！你合成了 3 連線，對敵方造成 ${dmg} 點致命打擊！`);
+          } else {
+            playerHp -= dmg;
+            log(`💣 敵方發動舷砲齊射！對你造成 ${dmg} 點重傷！`);
+          }
+
+          // 清空該連線的陣地
+          gridState[a] = null;
+          gridState[b] = null;
+          gridState[c] = null;
+        }
+      });
+    }
+
+    function enemyTurn() {
+      if (gameOver) return;
+
+      const enemyCard = getRandomCard();
+      let bestMove = -1;
+
+      // AI 簡單戰術邏輯：
+      // 1. 尋找能搶奪的敵方格子或空白格
+      let validMoves = [];
+      gridState.forEach((cell, idx) => {
+        if (!cell || (cell.owner === 'player' && enemyCard.power > cell.card.power)) {
+          validMoves.push(idx);
+        }
+      });
+
+      if (validMoves.length > 0) {
+        // 優先挑選中央格(4)或隨機挑選
+        if (validMoves.includes(4)) bestMove = 4;
+        else bestMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+
+        playCard('enemy', bestMove, enemyCard);
+      } else {
+        log("敵方無路可走，跳過本回合！");
+      }
+
+      if (!checkWinConditions()) {
+        isPlayerTurn = true;
+        updateUI();
+      }
+    }
+
+    function checkWinConditions() {
+      if (enemyHp <= 0) {
+        log("🎉 勝利！你擊沉了黑鬍子船長，奪得了海賊王寶藏！");
+        endGame();
+        return true;
+      }
+      if (playerHp <= 0) {
+        log("☠️ 敗北！你的海賊船遭到了擊沉...");
+        endGame();
+        return true;
+      }
+      return false;
+    }
+
+    function endGame() {
+      gameOver = true;
+      document.getElementById('resetBtn').style.display = 'block';
+      updateUI();
+    }
+
+    function log(msg) {
+      document.getElementById('log').innerText = msg;
+    }
+
+    // 初始化遊戲
+    initGame();
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🏴‍☠️ 海盜 3×3 陣地決鬥 (S/A/B/C 抽卡版)</title>
+  <title>🏴‍☠️ 海盜 3×3 陣地決鬥</title>
   <style>
     :root {
       --bg-color: #1a0f08;
@@ -38,6 +38,124 @@
       margin-bottom: 10px;
       font-size: 1.6rem;
       text-shadow: 2px 2px 4px #000;
+    }
+
+    /* 登入 / 註冊 介面樣式 */
+    .auth-container {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #aaa;
+      transition: all 0.2s;
+    }
+
+    .auth-tab.active {
+      color: var(--gold);
+      border-bottom: 3px solid var(--gold);
+      background: rgba(243, 156, 18, 0.1);
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 5px;
+      color: var(--text-color);
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      background: #110a05;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: var(--gold);
+    }
+
+    .btn-auth {
+      width: 100%;
+      padding: 10px;
+      background: var(--gold);
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #000;
+      cursor: pointer;
+      margin-top: 5px;
+      transition: background 0.2s;
+    }
+
+    .btn-auth:hover { background: #e08e0b; }
+
+    .btn-guest {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: #aaa;
+      margin-top: 10px;
+    }
+
+    .btn-guest:hover { color: #fff; border-color: #fff; }
+
+    .auth-error {
+      color: #ff4757;
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+      min-height: 18px;
+    }
+
+    /* 遊戲頂部玩家資訊欄 */
+    .user-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 380px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      background: #110a05;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-logout {
+      background: #333;
+      color: #ccc;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
     }
 
     /* 角色狀態欄 */
@@ -201,36 +319,179 @@
       cursor: pointer;
       display: none;
     }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
   <h1>🏴‍☠️ 海盜 3×3 陣地決鬥</h1>
 
-  <div class="status-container">
-    <div class="cap-box">
-      <span>紅鬍子船長 (玩家)</span>
-      <div class="hp-bar-bg"><div id="playerHpBar" class="hp-bar player-hp"></div></div>
-      <span id="playerHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+  <!-- 登入 / 註冊 畫面 -->
+  <div id="authScreen" class="auth-container">
+    <div class="auth-tabs">
+      <div id="tabLogin" class="auth-tab active" onclick="switchTab('login')">玩家登入</div>
+      <div id="tabRegister" class="auth-tab" onclick="switchTab('register')">註冊帳號</div>
     </div>
-    <div style="align-self: center; font-weight: bold; color: var(--gold);">VS</div>
-    <div class="cap-box">
-      <span>黑鬍子船長 (敵方)</span>
-      <div class="hp-bar-bg"><div id="enemyHpBar" class="hp-bar enemy-hp"></div></div>
-      <span id="enemyHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
-    </div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <!-- 登入表單 -->
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>船長暱稱 / 帳號</label>
+        <input type="text" id="loginUser" placeholder="請輸入暱稱" required>
+      </div>
+      <div class="form-group">
+        <label>密碼</label>
+        <input type="password" id="loginPass" placeholder="請輸入密碼" required>
+      </div>
+      <button type="submit" class="btn-auth">進入航程 (登入)</button>
+    </form>
+
+    <!-- 註冊表單 -->
+    <form id="registerForm" class="hidden" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label>設定船長暱稱</label>
+        <input type="text" id="regUser" placeholder="請輸入暱稱" required>
+      </div>
+      <div class="form-group">
+        <label>設定密碼</label>
+        <input type="password" id="regPass" placeholder="設定密碼" required>
+      </div>
+      <div class="form-group">
+        <label>確認密碼</label>
+        <input type="password" id="regPassConfirm" placeholder="再次輸入密碼" required>
+      </div>
+      <button type="submit" class="btn-auth">創建海盜團 (註冊)</button>
+    </form>
+
+    <button class="btn-auth btn-guest" onclick="startGuestGame()">訪客試玩</button>
   </div>
 
-  <div class="grid" id="grid"></div>
+  <!-- 遊戲主畫面 -->
+  <div id="gameScreen" class="hidden">
+    <div class="user-bar">
+      <span>⚓ 船長：<strong id="displayUsername" style="color:var(--gold)">訪客</strong></span>
+      <button class="btn-logout" onclick="handleLogout()">登出</button>
+    </div>
 
-  <div class="hand-title">點擊手牌進行選擇 (抽卡包含 S/A/B/C 級)：</div>
-  <div class="hand" id="hand"></div>
+    <div class="status-container">
+      <div class="cap-box">
+        <span id="playerCapTitle">紅鬍子船長</span>
+        <div class="hp-bar-bg"><div id="playerHpBar" class="hp-bar player-hp"></div></div>
+        <span id="playerHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+      </div>
+      <div style="align-self: center; font-weight: bold; color: var(--gold);">VS</div>
+      <div class="cap-box">
+        <span>黑鬍子船長 (敵方)</span>
+        <div class="hp-bar-bg"><div id="enemyHpBar" class="hp-bar enemy-hp"></div></div>
+        <span id="enemyHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+      </div>
+    </div>
 
-  <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
-  <button class="btn-reset" id="resetBtn" onclick="initGame()">重新開局</button>
+    <div class="grid" id="grid"></div>
+
+    <div class="hand-title">點擊手牌進行選擇 (抽卡包含 S/A/B/C 級)：</div>
+    <div class="hand" id="hand"></div>
+
+    <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
+    <button class="btn-reset" id="resetBtn" onclick="initGame()">重新開局</button>
+  </div>
 
   <script>
-    // 按稀有度分類的卡牌池
+    // --- 帳號管理系統邏輯 ---
+    let currentUser = null;
+
+    function getUsersFromStorage() {
+      return JSON.parse(localStorage.getItem('pirate_users') || '{}');
+    }
+
+    function switchTab(type) {
+      document.getElementById('authError').innerText = '';
+      if (type === 'login') {
+        document.getElementById('tabLogin').classList.add('active');
+        document.getElementById('tabRegister').classList.remove('active');
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('registerForm').classList.add('hidden');
+      } else {
+        document.getElementById('tabRegister').classList.add('active');
+        document.getElementById('tabLogin').classList.remove('active');
+        document.getElementById('registerForm').classList.remove('hidden');
+        document.getElementById('loginForm').classList.add('hidden');
+      }
+    }
+
+    function handleRegister(e) {
+      e.preventDefault();
+      const user = document.getElementById('regUser').value.trim();
+      const pass = document.getElementById('regPass').value;
+      const passConfirm = document.getElementById('regPassConfirm').value;
+      const errorEl = document.getElementById('authError');
+
+      if (pass !== passConfirm) {
+        errorEl.innerText = '兩次輸入的密碼不一致！';
+        return;
+      }
+
+      const users = getUsersFromStorage();
+      if (users[user]) {
+        errorEl.innerText = '此暱稱已有人使用！';
+        return;
+      }
+
+      users[user] = { password: pass };
+      localStorage.setItem('pirate_users', JSON.stringify(users));
+      
+      alert('註冊成功！已自動為您登入。');
+      loginSuccess(user);
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value;
+      const errorEl = document.getElementById('authError');
+
+      const users = getUsersFromStorage();
+      if (!users[user] || users[user].password !== pass) {
+        errorEl.innerText = '帳號或密碼錯誤！';
+        return;
+      }
+
+      loginSuccess(user);
+    }
+
+    function startGuestGame() {
+      loginSuccess('訪客船長');
+    }
+
+    function loginSuccess(username) {
+      currentUser = username;
+      localStorage.setItem('pirate_session', username);
+      document.getElementById('displayUsername').innerText = username;
+      document.getElementById('playerCapTitle').innerText = username;
+      
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('hidden');
+      initGame();
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      localStorage.removeItem('pirate_session');
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+
+    function checkSession() {
+      const savedUser = localStorage.getItem('pirate_session');
+      if (savedUser) {
+        loginSuccess(savedUser);
+      }
+    }
+
+    // --- 遊戲核心邏輯 ---
     const CARD_POOLS = {
       S: [
         { name: '海賊王', icon: '🏴‍☠️', power: 9, desc: '戰力9 (直傷4/恢復4)', directDmg: 4, heal: 4, rarity: 'S' },
@@ -253,9 +514,9 @@
     };
 
     const WIN_LINES = [
-      [0,1,2], [3,4,5], [6,7,8], // 橫
-      [0,3,6], [1,4,7], [2,5,8], // 豎
-      [0,4,8], [2,4,6]          // 斜
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
     ];
 
     let playerHp = 30, enemyHp = 30;
@@ -273,31 +534,26 @@
       gameOver = false;
       document.getElementById('resetBtn').style.display = 'none';
       
-      // 初始抽 3 張手牌
       playerHand = [];
       for (let i = 0; i < 3; i++) playerHand.push(drawCard());
 
       updateUI();
-      log("遊戲開始！請選擇手牌並放置於九宮格中。");
+      log("遊戲開始！請選擇手牌並點擊陣地。");
     }
 
-    // 抽卡機率核心邏輯 (S: 8%, A: 20%, B: 32%, C: 40%)
     function drawCard() {
       const rand = Math.random();
       let rarity = 'C';
-
       if (rand < 0.08) rarity = 'S';
       else if (rand < 0.28) rarity = 'A';
       else if (rand < 0.60) rarity = 'B';
       else rarity = 'C';
 
       const pool = CARD_POOLS[rarity];
-      const template = pool[Math.floor(Math.random() * pool.length)];
-      return { ...template };
+      return { ...pool[Math.floor(Math.random() * pool.length)] };
     }
 
     function updateUI() {
-      // HP 條更新
       const pPercent = Math.max(0, (playerHp / 30) * 100);
       const ePercent = Math.max(0, (enemyHp / 30) * 100);
       document.getElementById('playerHpBar').style.width = pPercent + '%';
@@ -305,7 +561,6 @@
       document.getElementById('playerHpText').innerText = `${Math.max(0, playerHp)} / 30`;
       document.getElementById('enemyHpText').innerText = `${Math.max(0, enemyHp)} / 30`;
 
-      // 渲染棋盤
       const gridEl = document.getElementById('grid');
       gridEl.innerHTML = '';
       gridState.forEach((cell, idx) => {
@@ -324,7 +579,6 @@
         gridEl.appendChild(div);
       });
 
-      // 渲染手牌
       const handEl = document.getElementById('hand');
       handEl.innerHTML = '';
       playerHand.forEach((card, idx) => {
@@ -351,7 +605,6 @@
       const card = playerHand[selectedHandIndex];
       const targetCell = gridState[index];
 
-      // 驗證放置邏輯
       if (targetCell) {
         if (targetCell.owner === 'player') {
           log("不能覆蓋自己的卡牌！");
@@ -363,10 +616,8 @@
         }
       }
 
-      // 執行出牌
       playCard('player', index, card);
       
-      // 抽一張新卡補充手牌
       const newCard = drawCard();
       playerHand[selectedHandIndex] = newCard;
       selectedHandIndex = null;
@@ -378,14 +629,13 @@
       if (!checkWinConditions()) {
         isPlayerTurn = false;
         updateUI();
-        setTimeout(enemyTurn, 1000); // 1秒後 AI 出牌
+        setTimeout(enemyTurn, 1000);
       }
     }
 
     function playCard(owner, index, card) {
       gridState[index] = { owner, card };
 
-      // 觸發卡牌特殊效果
       if (owner === 'player') {
         if (card.heal) playerHp = Math.min(30, playerHp + card.heal);
         if (card.recoil) playerHp -= card.recoil;
@@ -398,7 +648,6 @@
 
       log(`${owner === 'player' ? '你' : '敵方'}使用了【${card.rarity}級-${card.name}】佔領陣地！`);
 
-      // 檢查三連線 (連線砲擊)
       checkLines(owner);
       updateUI();
     }
@@ -410,7 +659,6 @@
             gridState[b] && gridState[b].owner === owner &&
             gridState[c] && gridState[c].owner === owner) {
           
-          // 觸發連線絕招
           const dmg = 12;
           if (owner === 'player') {
             enemyHp -= dmg;
@@ -420,7 +668,6 @@
             log(`💣 敵方發動舷砲齊射！對你造成 ${dmg} 點重傷！`);
           }
 
-          // 清空該連線陣地
           gridState[a] = null;
           gridState[b] = null;
           gridState[c] = null;
@@ -431,10 +678,9 @@
     function enemyTurn() {
       if (gameOver) return;
 
-      const enemyCard = drawCard(); // 敵方隨機抽卡
+      const enemyCard = drawCard();
       let bestMove = -1;
 
-      // AI 尋找可放置的格子
       let validMoves = [];
       gridState.forEach((cell, idx) => {
         if (!cell || (cell.owner === 'player' && enemyCard.power > cell.card.power)) {
@@ -443,46 +689,4 @@
       });
 
       if (validMoves.length > 0) {
-        if (validMoves.includes(4)) bestMove = 4; // 優先搶占中央格
-        else bestMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-
-        playCard('enemy', bestMove, enemyCard);
-      } else {
-        log("敵方無路可走，跳過本回合！");
-      }
-
-      if (!checkWinConditions()) {
-        isPlayerTurn = true;
-        updateUI();
-      }
-    }
-
-    function checkWinConditions() {
-      if (enemyHp <= 0) {
-        log("🎉 勝利！你擊沉了黑鬍子船長，奪得了海賊王寶藏！");
-        endGame();
-        return true;
-      }
-      if (playerHp <= 0) {
-        log("☠️ 敗北！你的海賊船遭到了擊沉...");
-        endGame();
-        return true;
-      }
-      return false;
-    }
-
-    function endGame() {
-      gameOver = true;
-      document.getElementById('resetBtn').style.display = 'block';
-      updateUI();
-    }
-
-    function log(msg) {
-      document.getElementById('log').innerText = msg;
-    }
-
-    // 初始化遊戲
-    initGame();
-  </script>
-</body>
-</html>
+ 

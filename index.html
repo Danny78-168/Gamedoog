@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🏴‍☠️ 海盜九宮格決鬥 (Pirate 3x3 Duel)</title>
+  <title>🏴‍☠️ 海盜 3×3 陣地決鬥 (S/A/B/C 抽卡版)</title>
   <style>
     :root {
       --bg-color: #1a0f08;
@@ -13,6 +13,12 @@
       --player-color: #e74c3c;
       --enemy-color: #2980b9;
       --text-color: #f5e6ca;
+
+      /* 稀有度顏色 */
+      --rarity-S: #ffd700;
+      --rarity-A: #a335ee;
+      --rarity-B: #0070dd;
+      --rarity-C: #9d9d9d;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -102,8 +108,8 @@
     }
 
     .cell:hover { border-color: var(--gold); background: #3a2717; }
-    .cell.owned-player { background: #4a1c1c; border: 2px solid var(--player-color); }
-    .cell.owned-enemy { background: #1c324a; border: 2px solid var(--enemy-color); }
+    .cell.owned-player { background: #4a1c1c; }
+    .cell.owned-enemy { background: #1c324a; }
 
     .cell-icon { font-size: 2rem; }
     .cell-power {
@@ -113,6 +119,14 @@
       position: absolute;
       bottom: 4px;
       right: 6px;
+    }
+
+    .cell-rarity {
+      font-size: 0.7rem;
+      font-weight: bold;
+      position: absolute;
+      top: 4px;
+      left: 6px;
     }
 
     /* 手牌區 */
@@ -129,18 +143,42 @@
       background: var(--card-bg);
       border: 2px solid var(--border-color);
       border-radius: 8px;
-      padding: 8px;
+      padding: 8px 4px;
       width: 30%;
       display: flex;
       flex-direction: column;
       align-items: center;
       cursor: pointer;
-      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
     }
 
-    .card:hover { transform: translateY(-4px); border-color: var(--gold); }
-    .card.selected { border-color: var(--gold); transform: translateY(-8px); box-shadow: 0 0 10px var(--gold); }
-    .card-icon { font-size: 1.8rem; }
+    /* 稀有度樣式 */
+    .rarity-S { border-color: var(--rarity-S) !important; box-shadow: 0 0 8px rgba(255, 215, 0, 0.6); }
+    .rarity-A { border-color: var(--rarity-A) !important; box-shadow: 0 0 5px rgba(163, 53, 238, 0.4); }
+    .rarity-B { border-color: var(--rarity-B) !important; }
+    .rarity-C { border-color: var(--rarity-C) !important; }
+
+    .card-badge {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(0,0,0,0.7);
+    }
+
+    .badge-S { color: var(--rarity-S); border: 1px solid var(--rarity-S); }
+    .badge-A { color: var(--rarity-A); border: 1px solid var(--rarity-A); }
+    .badge-B { color: var(--rarity-B); border: 1px solid var(--rarity-B); }
+    .badge-C { color: var(--rarity-C); border: 1px solid var(--rarity-C); }
+
+    .card:hover { transform: translateY(-4px); }
+    .card.selected { transform: translateY(-8px); box-shadow: 0 0 12px var(--gold); border-color: var(--gold) !important; }
+    
+    .card-icon { font-size: 1.8rem; margin-top: 6px; }
     .card-name { font-size: 0.8rem; margin: 4px 0; font-weight: bold; }
     .card-desc { font-size: 0.65rem; color: #ccc; text-align: center; }
 
@@ -185,20 +223,34 @@
 
   <div class="grid" id="grid"></div>
 
-  <div class="hand-title">選擇你要出動的海盜卡牌：</div>
+  <div class="hand-title">點擊手牌進行選擇 (抽卡包含 S/A/B/C 級)：</div>
   <div class="hand" id="hand"></div>
 
   <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
   <button class="btn-reset" id="resetBtn" onclick="initGame()">重新開局</button>
 
   <script>
-    const CARD_TYPES = [
-      { id: 'seaman', name: '水手', icon: '⚔️', power: 3, desc: '戰力 3' },
-      { id: 'gunner', name: '燧發槍手', icon: '🗡️', power: 5, desc: '戰力 5' },
-      { id: 'bomb', name: '炸藥桶', icon: '💣', power: 7, desc: '戰力 7 (自傷2點HP)', recoil: 2 },
-      { id: 'rum', name: '朗姆酒', icon: '🍺', power: 2, desc: '戰力 2 (恢復4點HP)', heal: 4 },
-      { id: 'cannon', name: '重砲手', icon: '💥', power: 4, desc: '戰力 4 (直傷3點)', directDmg: 3 }
-    ];
+    // 按稀有度分類的卡牌池
+    const CARD_POOLS = {
+      S: [
+        { name: '海賊王', icon: '🏴‍☠️', power: 9, desc: '戰力9 (直傷4/恢復4)', directDmg: 4, heal: 4, rarity: 'S' },
+        { name: '深海巨獸', icon: '🦑', power: 10, desc: '戰力10 (自傷3點HP)', recoil: 3, rarity: 'S' }
+      ],
+      A: [
+        { name: '皇家巨砲', icon: '💥', power: 7, desc: '戰力7 (直傷3點)', directDmg: 3, rarity: 'A' },
+        { name: '狂暴船長', icon: '🧔‍♂️', power: 6, desc: '戰力6 (恢復3點HP)', heal: 3, rarity: 'A' }
+      ],
+      B: [
+        { name: '燧發槍手', icon: '🗡️', power: 5, desc: '戰力5', rarity: 'B' },
+        { name: '炸藥桶', icon: '💣', power: 6, desc: '戰力6 (自傷2點HP)', recoil: 2, rarity: 'B' },
+        { name: '朗姆酒', icon: '🍺', power: 3, desc: '戰力3 (恢復4點HP)', heal: 4, rarity: 'B' }
+      ],
+      C: [
+        { name: '水手', icon: '⚔️', power: 3, desc: '戰力3', rarity: 'C' },
+        { name: '甲板雜役', icon: '🧹', power: 2, desc: '戰力2', rarity: 'C' },
+        { name: '傳話鸚鵡', icon: '🦜', power: 1, desc: '戰力1 (直傷1點)', directDmg: 1, rarity: 'C' }
+      ]
+    };
 
     const WIN_LINES = [
       [0,1,2], [3,4,5], [6,7,8], // 橫
@@ -221,16 +273,27 @@
       gameOver = false;
       document.getElementById('resetBtn').style.display = 'none';
       
-      // 抽滿手牌
+      // 初始抽 3 張手牌
       playerHand = [];
-      for (let i = 0; i < 3; i++) playerHand.push(getRandomCard());
+      for (let i = 0; i < 3; i++) playerHand.push(drawCard());
 
       updateUI();
-      log("遊戲開始！請選擇卡牌並放置於九宮格中。");
+      log("遊戲開始！請選擇手牌並放置於九宮格中。");
     }
 
-    function getRandomCard() {
-      return CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
+    // 抽卡機率核心邏輯 (S: 8%, A: 20%, B: 32%, C: 40%)
+    function drawCard() {
+      const rand = Math.random();
+      let rarity = 'C';
+
+      if (rand < 0.08) rarity = 'S';
+      else if (rand < 0.28) rarity = 'A';
+      else if (rand < 0.60) rarity = 'B';
+      else rarity = 'C';
+
+      const pool = CARD_POOLS[rarity];
+      const template = pool[Math.floor(Math.random() * pool.length)];
+      return { ...template };
     }
 
     function updateUI() {
@@ -250,7 +313,12 @@
         div.className = 'cell';
         if (cell) {
           div.classList.add(cell.owner === 'player' ? 'owned-player' : 'owned-enemy');
-          div.innerHTML = `<span class="cell-icon">${cell.card.icon}</span><span class="cell-power">${cell.card.power}</span>`;
+          div.classList.add(`rarity-${cell.card.rarity}`);
+          div.innerHTML = `
+            <span class="cell-rarity badge-${cell.card.rarity}">${cell.card.rarity}</span>
+            <span class="cell-icon">${cell.card.icon}</span>
+            <span class="cell-power">${cell.card.power}</span>
+          `;
         }
         div.onclick = () => onCellClick(idx);
         gridEl.appendChild(div);
@@ -261,8 +329,9 @@
       handEl.innerHTML = '';
       playerHand.forEach((card, idx) => {
         const div = document.createElement('div');
-        div.className = `card ${selectedHandIndex === idx ? 'selected' : ''}`;
+        div.className = `card rarity-${card.rarity} ${selectedHandIndex === idx ? 'selected' : ''}`;
         div.innerHTML = `
+          <span class="card-badge badge-${card.rarity}">${card.rarity}卡</span>
           <span class="card-icon">${card.icon}</span>
           <span class="card-name">${card.name}</span>
           <span class="card-desc">${card.desc}</span>
@@ -296,8 +365,15 @@
 
       // 執行出牌
       playCard('player', index, card);
-      playerHand[selectedHandIndex] = getRandomCard(); // 補牌
+      
+      // 抽一張新卡補充手牌
+      const newCard = drawCard();
+      playerHand[selectedHandIndex] = newCard;
       selectedHandIndex = null;
+
+      if (newCard.rarity === 'S') {
+        log(`✨ 運氣爆棚！你抽到了【S級卡牌】${newCard.name}！`);
+      }
 
       if (!checkWinConditions()) {
         isPlayerTurn = false;
@@ -320,7 +396,7 @@
         if (card.directDmg) playerHp -= card.directDmg;
       }
 
-      log(`${owner === 'player' ? '你' : '敵方'}使用了【${card.name}】佔領陣地！`);
+      log(`${owner === 'player' ? '你' : '敵方'}使用了【${card.rarity}級-${card.name}】佔領陣地！`);
 
       // 檢查三連線 (連線砲擊)
       checkLines(owner);
@@ -344,7 +420,7 @@
             log(`💣 敵方發動舷砲齊射！對你造成 ${dmg} 點重傷！`);
           }
 
-          // 清空該連線的陣地
+          // 清空該連線陣地
           gridState[a] = null;
           gridState[b] = null;
           gridState[c] = null;
@@ -355,11 +431,10 @@
     function enemyTurn() {
       if (gameOver) return;
 
-      const enemyCard = getRandomCard();
+      const enemyCard = drawCard(); // 敵方隨機抽卡
       let bestMove = -1;
 
-      // AI 簡單戰術邏輯：
-      // 1. 尋找能搶奪的敵方格子或空白格
+      // AI 尋找可放置的格子
       let validMoves = [];
       gridState.forEach((cell, idx) => {
         if (!cell || (cell.owner === 'player' && enemyCard.power > cell.card.power)) {
@@ -368,8 +443,7 @@
       });
 
       if (validMoves.length > 0) {
-        // 優先挑選中央格(4)或隨機挑選
-        if (validMoves.includes(4)) bestMove = 4;
+        if (validMoves.includes(4)) bestMove = 4; // 優先搶占中央格
         else bestMove = validMoves[Math.floor(Math.random() * validMoves.length)];
 
         playCard('enemy', bestMove, enemyCard);

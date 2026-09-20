@@ -327,8 +327,8 @@
   <!-- 登入 / 註冊 介面 -->
   <div id="authScreen" class="auth-container">
     <div class="auth-tabs">
-      <div id="tabLogin" class="auth-tab active">玩家登入</div>
-      <div id="tabRegister" class="auth-tab">註冊帳號</div>
+      <div id="tabLogin" class="auth-tab active" onclick="switchTab('login')">玩家登入</div>
+      <div id="tabRegister" class="auth-tab" onclick="switchTab('register')">註冊帳號</div>
     </div>
 
     <div class="auth-error" id="authError"></div>
@@ -343,7 +343,7 @@
         <label>密碼</label>
         <input type="password" id="loginPass" placeholder="請輸入密碼">
       </div>
-      <button type="button" id="btnDoLogin" class="btn-auth">進入航程 (登入)</button>
+      <button type="button" class="btn-auth" onclick="handleLogin()">進入航程 (登入)</button>
     </div>
 
     <!-- 註冊區塊 -->
@@ -360,19 +360,19 @@
         <label>確認密碼</label>
         <input type="password" id="regPassConfirm" placeholder="再次輸入密碼">
       </div>
-      <button type="button" id="btnDoRegister" class="btn-auth">創建海盜團 (註冊)</button>
+      <button type="button" class="btn-auth" onclick="handleRegister()">創建海盜團 (註冊)</button>
     </div>
 
-    <button type="button" id="btnGuest" class="btn-auth btn-guest">訪客試玩</button>
+    <button type="button" class="btn-auth btn-guest" onclick="startGuestGame()">訪客試玩</button>
     <br>
-    <button type="button" id="btnClearData" class="btn-clear">若無法點擊請點此「重置快取」</button>
+    <button type="button" class="btn-clear" onclick="clearLocalData()">重置本地快取</button>
   </div>
 
   <!-- 遊戲主畫面 -->
   <div id="gameScreen" class="hidden">
     <div class="user-bar">
       <span>⚓ 船長：<strong id="displayUsername" style="color:var(--gold)">訪客</strong></span>
-      <button type="button" id="btnLogout" class="btn-logout">登出</button>
+      <button type="button" class="btn-logout" onclick="handleLogout()">登出</button>
     </div>
 
     <div class="status-container">
@@ -395,17 +395,18 @@
     <div class="hand" id="hand"></div>
 
     <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
-    <button type="button" class="btn-reset" id="resetBtn">重新開局</button>
+    <button type="button" class="btn-reset" id="resetBtn" onclick="initGame()">重新開局</button>
   </div>
 
   <script>
-    // 手機異常捕捉 (發生錯誤時跳出 alert 彈窗提示)
+    // 錯誤捕獲顯示於畫面
     window.onerror = function(msg, url, line) {
-      alert("程式發生錯誤: " + msg + "\n行號: " + line);
+      const errEl = document.getElementById('authError');
+      if (errEl) errEl.innerText = "腳本執行錯誤: " + msg + " (Line " + line + ")";
       return false;
     };
 
-    // 安全快取相容機制
+    // 記憶體備用儲存（防止 localStorage 遭到 Safari/無痕模式禁用）
     const memoryStorage = {};
     function safeGet(key) {
       try { return localStorage.getItem(key); }
@@ -427,93 +428,79 @@
       catch(e) { return {}; }
     }
 
-    // 事件監聽綁定
-    document.addEventListener('DOMContentLoaded', function() {
-      
-      document.getElementById('tabLogin').onclick = function() {
-        document.getElementById('authError').innerText = '';
-        this.classList.add('active');
+    // --- 全域按鈕觸發函數 (保證 100% 可被 HTML 點擊) ---
+    function switchTab(type) {
+      document.getElementById('authError').innerText = '';
+      if (type === 'login') {
+        document.getElementById('tabLogin').classList.add('active');
         document.getElementById('tabRegister').classList.remove('active');
         document.getElementById('loginBox').classList.remove('hidden');
         document.getElementById('registerBox').classList.add('hidden');
-      };
-
-      document.getElementById('tabRegister').onclick = function() {
-        document.getElementById('authError').innerText = '';
-        this.classList.add('active');
+      } else {
+        document.getElementById('tabRegister').classList.add('active');
         document.getElementById('tabLogin').classList.remove('active');
         document.getElementById('registerBox').classList.remove('hidden');
         document.getElementById('loginBox').classList.add('hidden');
-      };
-
-      document.getElementById('btnDoRegister').onclick = function() {
-        const user = document.getElementById('regUser').value.trim();
-        const pass = document.getElementById('regPass').value;
-        const passConfirm = document.getElementById('regPassConfirm').value;
-        const errorEl = document.getElementById('authError');
-
-        if (!user || !pass) {
-          errorEl.innerText = '帳號與密碼不能留空！';
-          return;
-        }
-        if (pass !== passConfirm) {
-          errorEl.innerText = '兩次輸入的密碼不一致！';
-          return;
-        }
-
-        const users = getUsers();
-        if (users[user]) {
-          errorEl.innerText = '此暱稱已有人使用！';
-          return;
-        }
-
-        users[user] = { password: pass };
-        safeSet('pirate_users', JSON.stringify(users));
-        alert('註冊成功！已自動登入。');
-        loginSuccess(user);
-      };
-
-      document.getElementById('btnDoLogin').onclick = function() {
-        const user = document.getElementById('loginUser').value.trim();
-        const pass = document.getElementById('loginPass').value;
-        const errorEl = document.getElementById('authError');
-
-        const users = getUsers();
-        if (!users[user] || users[user].password !== pass) {
-          errorEl.innerText = '帳號或密碼錯誤！';
-          return;
-        }
-
-        loginSuccess(user);
-      };
-
-      document.getElementById('btnGuest').onclick = function() {
-        loginSuccess('訪客船長');
-      };
-
-      document.getElementById('btnLogout').onclick = function() {
-        currentUser = null;
-        safeRemove('pirate_session');
-        document.getElementById('gameScreen').classList.add('hidden');
-        document.getElementById('authScreen').classList.remove('hidden');
-      };
-
-      document.getElementById('btnClearData').onclick = function() {
-        try { localStorage.clear(); } catch(e){}
-        alert('快取已重置，頁面將自動重新載入。');
-        location.reload();
-      };
-
-      document.getElementById('resetBtn').onclick = function() {
-        initGame();
-      };
-
-      // 檢查登入 Session
-      const savedUser = safeGet('pirate_session');
-      if (savedUser) {
-        loginSuccess(savedUser);
       }
-    });
+    }
+
+    function handleRegister() {
+      const user = document.getElementById('regUser').value.trim();
+      const pass = document.getElementById('regPass').value;
+      const passConfirm = document.getElementById('regPassConfirm').value;
+      const errorEl = document.getElementById('authError');
+
+      if (!user || !pass) {
+        errorEl.innerText = '帳號與密碼不能留空！';
+        return;
+      }
+      if (pass !== passConfirm) {
+        errorEl.innerText = '兩次輸入的密碼不一致！';
+        return;
+      }
+
+      const users = getUsers();
+      if (users[user]) {
+        errorEl.innerText = '此暱稱已有人使用！';
+        return;
+      }
+
+      users[user] = { password: pass };
+      safeSet('pirate_users', JSON.stringify(users));
+      alert('註冊成功！已自動為您登入。');
+      loginSuccess(user);
+    }
+
+    function handleLogin() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value;
+      const errorEl = document.getElementById('authError');
+
+      const users = getUsers();
+      if (!users[user] || users[user].password !== pass) {
+        errorEl.innerText = '帳號或密碼錯誤！';
+        return;
+      }
+
+      loginSuccess(user);
+    }
+
+    function startGuestGame() {
+      loginSuccess('訪客船長');
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      safeRemove('pirate_session');
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+
+    function clearLocalData() {
+      try { localStorage.clear(); } catch(e){}
+      alert('本地快取已清空，網頁即將刷新！');
+      location.reload();
+    }
 
     function loginSuccess(username) {
       currentUser = username;
@@ -684,4 +671,17 @@
 
       log(`${owner === 'player' ? '你' : '敵方'}使用了【${card.rarity}級-${card.name}】佔領陣地！`);
 
-      checkLines(owne
+      checkLines(owner);
+      updateUI();
+    }
+
+    function checkLines(owner) {
+      WIN_LINES.forEach(line => {
+        const [a, b, c] = line;
+        if (gridState[a] && gridState[a].owner === owner &&
+            gridState[b] && gridState[b].owner === owner &&
+            gridState[c] && gridState[c].owner === owner) {
+          
+          const dmg = 12;
+          if (owner === 'player') {
+       

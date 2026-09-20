@@ -1,20 +1,532 @@
-<!-- 在 <head> 中加入 Google 與 LINE LIFF 的 SDK -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<!-- 引入 JWT 解析庫 (用於解析 Google 回傳的 Token) -->
-<script src="https://cdn.jsdelivr.net/npm/jwt-decode/build/jwt-decode.min.js"></script>
-
-<!-- ... (中間的 CSS 樣式與遊戲 UI 保持不變) ... -->
-
-<!-- 將原本的登入區塊 (#loginBox) 替換為以下內容 -->
-<div id="loginBox">
-  <div style="margin-bottom: 15px; color: #aaa; font-size: 0.9rem;">選擇登入方式：</div>
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏴‍☠️ 海盜 3×3 陣地決鬥</title>
   
-  <!-- Google 登入按鈕容器 -->
-  <div id="googleLoginBtn" style="display: flex; justify-content: center; margin-bottom: 15px;"></div>
-  
-  <!-- LINE 登入按鈕 -->
-  <button type="button" data-action="line-login" class="btn-auth" style="background: #06C755; color: white;">
-    使用 LINE 登入
-  </button>
-</div>
+  <!-- 引入第三方登入 SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jwt-decode/build/jwt-decode.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #1a0f08;
+      --card-bg: #2c1d11;
+      --border-color: #8c6747;
+      --gold: #f39c12;
+      --player-color: #e74c3c;
+      --enemy-color: #2980b9;
+      --text-color: #f5e6ca;
+
+      --rarity-S: #ffd700;
+      --rarity-A: #a335ee;
+      --rarity-B: #0070dd;
+      --rarity-C: #9d9d9d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 15px;
+    }
+
+    h1 {
+      color: var(--gold);
+      margin-bottom: 10px;
+      font-size: 1.6rem;
+      text-shadow: 2px 2px 4px #000;
+    }
+
+    .auth-container {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .btn-auth {
+      width: 100%;
+      padding: 12px;
+      background: var(--gold);
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #000;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-auth:active { background: #e08e0b; }
+
+    .btn-line { background: #06C755; color: white; margin-bottom: 15px; }
+    .btn-line:active { background: #05a044; }
+
+    .btn-guest { background: transparent; border: 1px solid var(--border-color); color: #aaa; margin-top: 10px; }
+    .btn-clear { background: transparent; border: none; color: #777; font-size: 0.75rem; margin-top: 15px; text-decoration: underline; cursor: pointer; }
+
+    .user-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 380px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      background: #110a05;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-logout {
+      background: #333;
+      color: #ccc;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .status-container {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 380px;
+      margin-bottom: 15px;
+      background: var(--card-bg);
+      padding: 10px;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .cap-box { display: flex; flex-direction: column; align-items: center; width: 45%; }
+    .hp-bar-bg { width: 100%; height: 14px; background: #444; border-radius: 7px; overflow: hidden; margin-top: 5px; border: 1px solid #000; }
+    .hp-bar { height: 100%; width: 100%; transition: width 0.3s ease; }
+    .player-hp { background: var(--player-color); }
+    .enemy-hp { background: var(--enemy-color); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 380px;
+      aspect-ratio: 1;
+      background: #0f0804;
+      padding: 8px;
+      border: 3px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+    }
+
+    .cell {
+      background: var(--card-bg);
+      border: 2px dashed #5c4028;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .cell.owned-player { background: #4a1c1c; }
+    .cell.owned-enemy { background: #1c324a; }
+    .cell-icon { font-size: 2rem; }
+    .cell-power { font-size: 0.9rem; font-weight: bold; color: var(--gold); position: absolute; bottom: 4px; right: 6px; }
+    .cell-rarity { font-size: 0.7rem; font-weight: bold; position: absolute; top: 4px; left: 6px; }
+
+    .hand-title { margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa; }
+    .hand { display: flex; gap: 10px; width: 100%; max-width: 380px; justify-content: center; }
+
+    .card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 4px;
+      width: 30%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .rarity-S { border-color: var(--rarity-S) !important; box-shadow: 0 0 8px rgba(255, 215, 0, 0.6); }
+    .rarity-A { border-color: var(--rarity-A) !important; box-shadow: 0 0 5px rgba(163, 53, 238, 0.4); }
+    .rarity-B { border-color: var(--rarity-B) !important; }
+    .rarity-C { border-color: var(--rarity-C) !important; }
+
+    .card-badge { position: absolute; top: 4px; left: 4px; font-size: 0.65rem; font-weight: bold; padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,0.7); }
+    .badge-S { color: var(--rarity-S); border: 1px solid var(--rarity-S); }
+    .badge-A { color: var(--rarity-A); border: 1px solid var(--rarity-A); }
+    .badge-B { color: var(--rarity-B); border: 1px solid var(--rarity-B); }
+    .badge-C { color: var(--rarity-C); border: 1px solid var(--rarity-C); }
+
+    .card.selected { transform: translateY(-8px); box-shadow: 0 0 12px var(--gold); border-color: var(--gold) !important; }
+    
+    .card-icon { font-size: 1.8rem; margin-top: 6px; }
+    .card-name { font-size: 0.8rem; margin: 4px 0; font-weight: bold; }
+    .card-desc { font-size: 0.65rem; color: #ccc; text-align: center; }
+
+    .log { margin-top: 15px; font-size: 0.85rem; color: var(--gold); height: 24px; text-align: center; }
+    .btn-reset { margin-top: 10px; padding: 8px 16px; background: var(--gold); border: none; border-radius: 4px; font-weight: bold; cursor: pointer; display: none; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <h1>🏴‍☠️ 海盜 3×3 陣地決鬥</h1>
+
+  <!-- 第三方登入介面 -->
+  <div id="authScreen" class="auth-container">
+    <h3 style="color: var(--gold); margin-bottom: 20px;">船長登入</h3>
+    
+    <!-- Google 登入按鈕容器 -->
+    <div id="googleLoginBtn" style="display: flex; justify-content: center; margin-bottom: 15px;"></div>
+    
+    <!-- LINE 登入按鈕 -->
+    <button type="button" data-action="line-login" class="btn-auth btn-line">
+      🟢 使用 LINE 登入
+    </button>
+
+    <hr style="border: 1px solid var(--border-color); margin: 20px 0;">
+
+    <button type="button" data-action="guest" class="btn-auth btn-guest">訪客試玩</button>
+    <br>
+    <button type="button" data-action="clear" class="btn-clear">重置本地快取</button>
+  </div>
+
+  <!-- 遊戲主畫面 -->
+  <div id="gameScreen" class="hidden">
+    <div class="user-bar">
+      <span>⚓ 船長：<strong id="displayUsername" style="color:var(--gold)">訪客</strong></span>
+      <button type="button" data-action="logout" class="btn-logout">登出</button>
+    </div>
+
+    <div class="status-container">
+      <div class="cap-box">
+        <span id="playerCapTitle">紅鬍子船長</span>
+        <div class="hp-bar-bg"><div id="playerHpBar" class="hp-bar player-hp"></div></div>
+        <span id="playerHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+      </div>
+      <div style="align-self: center; font-weight: bold; color: var(--gold);">VS</div>
+      <div class="cap-box">
+        <span>黑鬍子船長 (敵方)</span>
+        <div class="hp-bar-bg"><div id="enemyHpBar" class="hp-bar enemy-hp"></div></div>
+        <span id="enemyHpText" style="font-size: 0.8rem; margin-top:2px;">30 / 30</span>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="hand-title">點擊手牌進行選擇 (抽卡包含 S/A/B/C 級)：</div>
+    <div class="hand" id="hand"></div>
+
+    <div class="log" id="log">輪到你的回合，請選擇手牌並點擊陣地！</div>
+    <button type="button" data-action="reset-game" id="resetBtn" class="btn-reset">重新開局</button>
+  </div>
+
+  <script>
+    // ==========================================
+    // ⚠️ 請在這裡換成你申請的真實 API 金鑰 ⚠️
+    // ==========================================
+    const GOOGLE_CLIENT_ID = "你的_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+    const LINE_LIFF_ID = "你的_LINE_LIFF_ID";
+
+    // 備用快取
+    const memoryStorage = {};
+    function safeGet(key) { try { return localStorage.getItem(key); } catch (e) { return memoryStorage[key] || null; } }
+    function safeSet(key, value) { try { localStorage.setItem(key, value); } catch (e) { memoryStorage[key] = value; } }
+    function safeRemove(key) { try { localStorage.removeItem(key); } catch (e) { delete memoryStorage[key]; } }
+
+    let currentUser = null;
+
+    // --- 第三方登入初始化 ---
+    window.onload = async function() {
+      // 1. 初始化 Google 登入 (如果有填入真實 ID)
+      if (GOOGLE_CLIENT_ID !== "你的_GOOGLE_CLIENT_ID.apps.googleusercontent.com") {
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse
+        });
+        google.accounts.id.renderButton(
+          document.getElementById("googleLoginBtn"),
+          { theme: "filled_black", size: "large", width: 280 }
+        );
+      } else {
+        document.getElementById("googleLoginBtn").innerText = "(尚未設定 Google Client ID)";
+        document.getElementById("googleLoginBtn").style.color = "#aaa";
+      }
+
+      // 2. 初始化 LINE LIFF
+      if (LINE_LIFF_ID !== "你的_LINE_LIFF_ID") {
+        try {
+          await liff.init({ liffId: LINE_LIFF_ID });
+          if (liff.isLoggedIn()) {
+            const profile = await liff.getProfile();
+            loginSuccess(`LINE玩家_${profile.displayName}`);
+          }
+        } catch (err) {
+          console.error("LIFF 初始化失敗", err);
+        }
+      }
+
+      // 3. 檢查本地快取 Session (適用於訪客與 Google)
+      const savedUser = safeGet('pirate_session');
+      if (savedUser && (!window.liff || !liff.isLoggedIn())) {
+        loginSuccess(savedUser);
+      }
+    };
+
+    // Google 登入成功處理
+    function handleGoogleResponse(response) {
+      try {
+        const decodedToken = jwt_decode(response.credential);
+        const username = decodedToken.name || "Google玩家";
+        loginSuccess(`Google_${username}`);
+      } catch(e) {
+        alert("Google 登入解析失敗");
+      }
+    }
+
+    // --- 全域按鈕事件委派 ---
+    document.addEventListener('click', function(e) {
+      const target = e.target;
+      const action = target.getAttribute('data-action');
+      if (!action) return;
+
+      if (action === 'line-login') {
+        if (LINE_LIFF_ID === "你的_LINE_LIFF_ID") {
+          alert("請先在原始碼中填寫真實的 LINE_LIFF_ID");
+          return;
+        }
+        if (!liff.isLoggedIn()) liff.login();
+      }
+      else if (action === 'guest') startGuestGame();
+      else if (action === 'clear') clearLocalData();
+      else if (action === 'logout') handleLogout();
+      else if (action === 'reset-game') initGame();
+    });
+
+    function startGuestGame() {
+      loginSuccess('訪客船長');
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      safeRemove('pirate_session');
+      if (window.liff && liff.isLoggedIn()) {
+        liff.logout(); // 登出 LINE
+      }
+      document.querySelectorAll('#gameScreen').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('#authScreen').forEach(el => el.classList.remove('hidden'));
+    }
+
+    function clearLocalData() {
+      try { localStorage.clear(); } catch(e){}
+      alert('本地快取已清空，網頁即將刷新！');
+      location.reload();
+    }
+
+    function loginSuccess(username) {
+      currentUser = username;
+      safeSet('pirate_session', username);
+      
+      document.querySelectorAll('#displayUsername').forEach(el => el.innerText = username);
+      document.querySelectorAll('#playerCapTitle').forEach(el => el.innerText = username);
+      
+      document.querySelectorAll('#authScreen').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('#gameScreen').forEach(el => el.classList.remove('hidden'));
+      initGame();
+    }
+
+    // --- 遊戲邏輯 ---
+    const CARD_POOLS = {
+      S: [ { name: '海賊王', icon: '🏴‍☠️', power: 9, desc: '戰力9 (直傷4/恢復4)', directDmg: 4, heal: 4, rarity: 'S' }, { name: '深海巨獸', icon: '🦑', power: 10, desc: '戰力10 (自傷3點HP)', recoil: 3, rarity: 'S' } ],
+      A: [ { name: '皇家巨砲', icon: '💥', power: 7, desc: '戰力7 (直傷3點)', directDmg: 3, rarity: 'A' }, { name: '狂暴船長', icon: '🧔‍♂️', power: 6, desc: '戰力6 (恢復3點HP)', heal: 3, rarity: 'A' } ],
+      B: [ { name: '燧發槍手', icon: '🗡️', power: 5, desc: '戰力5', rarity: 'B' }, { name: '炸藥桶', icon: '💣', power: 6, desc: '戰力6 (自傷2點HP)', recoil: 2, rarity: 'B' }, { name: '朗姆酒', icon: '🍺', power: 3, desc: '戰力3 (恢復4點HP)', heal: 4, rarity: 'B' } ],
+      C: [ { name: '水手', icon: '⚔️', power: 3, desc: '戰力3', rarity: 'C' }, { name: '甲板雜役', icon: '🧹', power: 2, desc: '戰力2', rarity: 'C' }, { name: '傳話鸚鵡', icon: '🦜', power: 1, desc: '戰力1 (直傷1點)', directDmg: 1, rarity: 'C' } ]
+    };
+
+    const WIN_LINES = [ [0,1,2], [3,4,5], [6,7,8], [0,3,6], [1,4,7], [2,5,8], [0,4,8], [2,4,6] ];
+    let playerHp = 30, enemyHp = 30;
+    let gridState = Array(9).fill(null);
+    let playerHand = [];
+    let selectedHandIndex = null;
+    let isPlayerTurn = true;
+    let gameOver = false;
+
+    function initGame() {
+      playerHp = 30; enemyHp = 30;
+      gridState = Array(9).fill(null);
+      selectedHandIndex = null;
+      isPlayerTurn = true;
+      gameOver = false;
+      document.querySelectorAll('#resetBtn').forEach(btn => btn.style.display = 'none');
+      
+      playerHand = [];
+      for (let i = 0; i < 3; i++) playerHand.push(drawCard());
+      updateUI();
+      logMsg("遊戲開始！請選擇手牌並點擊陣地。");
+    }
+
+    function drawCard() {
+      const rand = Math.random();
+      let rarity = 'C';
+      if (rand < 0.08) rarity = 'S'; else if (rand < 0.28) rarity = 'A'; else if (rand < 0.60) rarity = 'B'; else rarity = 'C';
+      const pool = CARD_POOLS[rarity];
+      return { ...pool[Math.floor(Math.random() * pool.length)] };
+    }
+
+    function updateUI() {
+      const pPercent = Math.max(0, (playerHp / 30) * 100);
+      const ePercent = Math.max(0, (enemyHp / 30) * 100);
+      document.querySelectorAll('#playerHpBar').forEach(el => el.style.width = pPercent + '%');
+      document.querySelectorAll('#enemyHpBar').forEach(el => el.style.width = ePercent + '%');
+      document.querySelectorAll('#playerHpText').forEach(el => el.innerText = `${Math.max(0, playerHp)} / 30`);
+      document.querySelectorAll('#enemyHpText').forEach(el => el.innerText = `${Math.max(0, enemyHp)} / 30`);
+
+      document.querySelectorAll('#grid').forEach(gridEl => {
+        gridEl.innerHTML = '';
+        gridState.forEach((cell, idx) => {
+          const div = document.createElement('div');
+          div.className = 'cell';
+          if (cell) {
+            div.classList.add(cell.owner === 'player' ? 'owned-player' : 'owned-enemy');
+            div.classList.add(`rarity-${cell.card.rarity}`);
+            div.innerHTML = `<span class="cell-rarity badge-${cell.card.rarity}">${cell.card.rarity}</span><span class="cell-icon">${cell.card.icon}</span><span class="cell-power">${cell.card.power}</span>`;
+          }
+          div.addEventListener('click', () => onCellClick(idx));
+          gridEl.appendChild(div);
+        });
+      });
+
+      document.querySelectorAll('#hand').forEach(handEl => {
+        handEl.innerHTML = '';
+        playerHand.forEach((card, idx) => {
+          const div = document.createElement('div');
+          div.className = `card rarity-${card.rarity} ${selectedHandIndex === idx ? 'selected' : ''}`;
+          div.innerHTML = `<span class="card-badge badge-${card.rarity}">${card.rarity}卡</span><span class="card-icon">${card.icon}</span><span class="card-name">${card.name}</span><span class="card-desc">${card.desc}</span>`;
+          div.addEventListener('click', () => {
+            if (!isPlayerTurn || gameOver) return;
+            selectedHandIndex = idx;
+            updateUI();
+          });
+          handEl.appendChild(div);
+        });
+      });
+    }
+
+    function onCellClick(index) {
+      if (!isPlayerTurn || gameOver || selectedHandIndex === null) return;
+      const card = playerHand[selectedHandIndex];
+      const targetCell = gridState[index];
+
+      if (targetCell) {
+        if (targetCell.owner === 'player') { logMsg("不能覆蓋自己的卡牌！"); return; }
+        if (card.power <= targetCell.card.power) { logMsg(`戰力不足！需要高於 ${targetCell.card.power} 才能搶奪。`); return; }
+      }
+
+      playCard('player', index, card);
+      const newCard = drawCard();
+      playerHand[selectedHandIndex] = newCard;
+      selectedHandIndex = null;
+
+      if (newCard.rarity === 'S') logMsg(`✨ 運氣爆棚！抽到了【S級】${newCard.name}！`);
+      if (!checkWinConditions()) {
+        isPlayerTurn = false;
+        updateUI();
+        setTimeout(enemyTurn, 1000);
+      }
+    }
+
+    function playCard(owner, index, card) {
+      gridState[index] = { owner, card };
+      if (owner === 'player') {
+        if (card.heal) playerHp = Math.min(30, playerHp + card.heal);
+        if (card.recoil) playerHp -= card.recoil;
+        if (card.directDmg) enemyHp -= card.directDmg;
+      } else {
+        if (card.heal) enemyHp = Math.min(30, enemyHp + card.heal);
+        if (card.recoil) enemyHp -= card.recoil;
+        if (card.directDmg) playerHp -= card.directDmg;
+      }
+      logMsg(`${owner === 'player' ? '你' : '敵方'}使用了【${card.name}】！`);
+      checkLines(owner);
+      updateUI();
+    }
+
+    function checkLines(owner) {
+      WIN_LINES.forEach(line => {
+        const [a, b, c] = line;
+        if (gridState[a] && gridState[a].owner === owner && gridState[b] && gridState[b].owner === owner && gridState[c] && gridState[c].owner === owner) {
+          const dmg = 12;
+          if (owner === 'player') {
+            enemyHp -= dmg;
+            logMsg(`💥 舷砲齊射！3連線對敵方造成 ${dmg} 點致命打擊！`);
+          } else {
+            playerHp -= dmg;
+            logMsg(`💣 敵方舷砲齊射！對你造成 ${dmg} 點重傷！`);
+          }
+          gridState[a] = null; gridState[b] = null; gridState[c] = null;
+        }
+      });
+    }
+
+    function enemyTurn() {
+      if (gameOver) return;
+      const enemyCard = drawCard();
+      let bestMove = -1;
+      let validMoves = [];
+      
+      gridState.forEach((cell, idx) => {
+        if (!cell || (cell.owner === 'player' && enemyCard.power > cell.card.power)) validMoves.push(idx);
+      });
+
+      if (validMoves.length > 0) {
+        if (validMoves.includes(4)) bestMove = 4;
+        else bestMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+        playCard('enemy', bestMove, enemyCard);
+      } else {
+        logMsg("敵方無路可走，跳過本回合！");
+      }
+
+      if (!checkWinConditions()) { isPlayerTurn = true; updateUI(); }
+    }
+
+    function checkWinConditions() {
+      if (enemyHp <= 0) { logMsg("🎉 勝利！你擊沉了敵船，奪得寶藏！"); endGame(); return true; }
+      if (playerHp <= 0) { logMsg("☠️ 敗北！你的海賊船遭到了擊沉..."); endGame(); return true; }
+      return false;
+    }
+
+    function endGame() {
+      gameOver = true;
+      document.querySelectorAll('#resetBtn').forEach(btn => btn.style.display = 'block');
+      updateUI();
+    }
+
+    function logMsg(msg) { document.querySelectorAll('#log').forEach(el => el.innerText = msg); }
+  </script>
+</body>
+</html>
